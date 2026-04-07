@@ -22,7 +22,7 @@ use setup::Tracing;
 use crate::{
     broadcaster::Broadcaster,
     config::{AppConfig, AppState},
-    handler::post_order,
+    handler::{get_orderbook, post_order},
     store::AppStore,
 };
 
@@ -51,6 +51,7 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/health", get(|| async { "Server is healthy!" }))
         .route("/orders", post(post_order))
+        .route("/orderbook", get(get_orderbook))
         .layer(CorsLayer::permissive())
         .layer(
             TraceLayer::new_for_http()
