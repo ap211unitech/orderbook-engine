@@ -21,7 +21,7 @@
 use anyhow::Result;
 use redis::{AsyncCommands, Client, Script, aio::ConnectionManager};
 
-use crate::types::{Fill, OrderBook, SubmitOrder};
+use crate::types::{Fill, Order, OrderBook, PriceLevel, Side, SubmitOrder};
 
 const BOOK_KEY: &str = "book";
 const FILL_CHANNEL: &str = "fills";
@@ -77,12 +77,17 @@ impl AppStore {
     }
 
     /// Return a snapshot of the current order book.
+    /// The book is stored in Redis as a JSON object with string price keys,
+    /// so we deserialise into serde_json::Value first and convert manually.
     pub async fn get_book(&self) -> Result<OrderBook> {
         let raw: Option<String> = self.conn.clone().get(BOOK_KEY).await?;
-        match raw {
-            Some(s) => Ok(serde_json::from_str(&s)?),
-            None => Ok(OrderBook::default()),
-        }
+        let raw = match raw {
+            Some(s) => s,
+            None => return Ok(OrderBook::default()),
+        };
+
+        let v: serde_json::Value = serde_json::from_str(&raw)?;
+        Ok(parse_book(&v))
     }
 
     /// Open a dedicated connection and return it subscribed to the fills channel.
@@ -93,6 +98,52 @@ impl AppStore {
         pubsub.subscribe(FILL_CHANNEL).await?;
         Ok(pubsub)
     }
+}
+
+/// Convert the Redis JSON book (string-keyed price maps) into OrderBook.
+fn parse_book(v: &serde_json::Value) -> OrderBook {
+    let mut book = OrderBook::default();
+
+    if let Some(bids_obj) = v.get("bids").and_then(|b| b.as_object()) {
+        for (price_str, level_val) in bids_obj {
+            if let Ok(price) = price_str.parse::<u64>() {
+                let orders = parse_level(level_val, Side::Buy, price);
+                if !orders.is_empty() {
+                    book.bids.insert(price, PriceLevel { orders });
+                }
+            }
+        }
+    }
+
+    if let Some(asks_obj) = v.get("asks").and_then(|a| a.as_object()) {
+        for (price_str, level_val) in asks_obj {
+            if let Ok(price) = price_str.parse::<u64>() {
+                let orders = parse_level(level_val, Side::Sell, price);
+                if !orders.is_empty() {
+                    book.asks.insert(price, PriceLevel { orders });
+                }
+            }
+        }
+    }
+
+    book
+}
+
+fn parse_level(v: &serde_json::Value, side: Side, price: u64) -> Vec<Order> {
+    let arr = match v.as_array() {
+        Some(a) => a,
+        None => return vec![],
+    };
+    arr.iter()
+        .filter_map(|o| {
+            Some(Order {
+                id: o.get("id")?.as_u64()?,
+                side,
+                price: o.get("price")?.as_u64().unwrap_or(price),
+                qty: o.get("qty")?.as_u64()?,
+            })
+        })
+        .collect()
 }
 
 // Lua script — executes atomically inside Redis.

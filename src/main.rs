@@ -1,6 +1,6 @@
 mod broadcaster;
 mod config;
-mod handler;
+mod handlers;
 mod setup;
 mod store;
 mod types;
@@ -22,7 +22,7 @@ use setup::Tracing;
 use crate::{
     broadcaster::Broadcaster,
     config::{AppConfig, AppState},
-    handler::{get_orderbook, post_order, ws_handler},
+    handlers::{get_orderbook, post_order, ws_handler},
     store::AppStore,
 };
 
