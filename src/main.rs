@@ -1,19 +1,26 @@
-use std::net::SocketAddr;
+mod config;
+mod setup;
+mod store;
+mod types;
 
-use axum::{self, Router, body::Body, extract::Request, routing::get};
-use tower_http::trace::TraceLayer;
+use std::{net::SocketAddr, sync::Arc};
+
+use anyhow::Result;
+use axum::{
+    self, Router,
+    body::Body,
+    extract::Request,
+    routing::{get, post},
+};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::FmtSubscriber;
 
 use setup::Tracing;
 
-use crate::config::AppConfig;
-
-mod config;
-mod setup;
-mod types;
+use crate::{config::AppConfig, store::AppStore};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Setting up tracing
     let subscriber = FmtSubscriber::builder()
         .with_max_level(tracing::Level::INFO) // error > warn > info > debug > trace
@@ -23,9 +30,14 @@ async fn main() {
 
     let app_config = AppConfig::load_config();
 
+    tracing::info!("Connecting to Redis at {}", app_config.redis_url);
+    let store = Arc::new(AppStore::new(&app_config.redis_url).await?);
+    tracing::info!("Connected to Redis ✅");
+
     // build our application with a single route
     let app = Router::new()
-        .route("/", get(|| async { "Hello, World!" }))
+        .route("/health", get(|| async { "Server is healthy!" }))
+        .layer(CorsLayer::permissive())
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|_: &Request<Body>| tracing::info_span!("http"))
@@ -45,6 +57,7 @@ async fn main() {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
-    .await
-    .unwrap();
+    .await?;
+
+    Ok(())
 }
