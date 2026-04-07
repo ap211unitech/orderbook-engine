@@ -2,13 +2,17 @@
 
 use axum::{
     Json,
-    extract::State,
+    extract::{
+        State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use tracing::info;
 
 use crate::{
+    broadcaster::Broadcaster,
     config::AppState,
     types::{LevelSnapshot, OrderBookSnapshot, SubmitOrder, SubmitResponse},
 };
@@ -57,6 +61,50 @@ pub async fn get_orderbook(State(state): State<AppState>) -> Response {
         Err(e) => {
             tracing::error!("get_book error: {e}");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        }
+    }
+}
+
+// GET /ws  — WebSocket upgrade
+pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state.broadcaster))
+}
+
+async fn handle_socket(mut socket: WebSocket, broadcaster: Broadcaster) {
+    let mut rx = broadcaster.subscribe();
+    tracing::info!("WebSocket client connected");
+
+    loop {
+        tokio::select! {
+            // Incoming fill from Redis relay.
+            result = rx.recv() => {
+                match result {
+                    Ok(msg) => {
+                        tracing::debug!("sending fill to ws client");
+                        if socket.send(Message::Text(msg.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!("ws client lagged by {n} messages");
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+
+            // Client disconnect or ping/pong.
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Close(_))) | None => {
+                        info!("WebSocket client disconnected");
+                        break;
+                    }
+                    Some(Ok(Message::Ping(data))) => {
+                        let _ = socket.send(Message::Pong(data)).await;
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 }

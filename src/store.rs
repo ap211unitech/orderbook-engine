@@ -84,6 +84,15 @@ impl AppStore {
             None => Ok(OrderBook::default()),
         }
     }
+
+    /// Open a dedicated connection and return it subscribed to the fills channel.
+    pub async fn subscribe_fills(&self) -> Result<redis::aio::PubSub> {
+        let client = Client::open(self.redis_url.as_str())?;
+        let conn = client.get_async_connection().await?;
+        let mut pubsub = conn.into_pubsub();
+        pubsub.subscribe(FILL_CHANNEL).await?;
+        Ok(pubsub)
+    }
 }
 
 // Lua script — executes atomically inside Redis.
