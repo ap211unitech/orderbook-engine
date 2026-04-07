@@ -2,6 +2,8 @@
 
 A order matching engine for a prediction market, built in Rust with Axum. Supports multiple concurrent API server instances, price-time priority matching, and real-time fill broadcasts over WebSocket.
 
+Watch demo: https://drive.google.com/file/d/1RHSigSAgP2m1LudzqP5lWdPACtRBPDx-/view?usp=sharing
+
 ---
 
 ## Quick Start
