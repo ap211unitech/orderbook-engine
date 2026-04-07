@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use crate::{broadcaster::Broadcaster, store::AppStore};
+
 pub struct AppConfig {
     pub redis_url: String,
     pub port: u16,
@@ -16,4 +20,11 @@ impl AppConfig {
 
         app_config
     }
+}
+
+/// Shared application state injected into every handler.
+#[derive(Clone)]
+pub struct AppState {
+    pub store: Arc<AppStore>,
+    pub broadcaster: Broadcaster,
 }
