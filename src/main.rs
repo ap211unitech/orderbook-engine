@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
         )
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], app_config.port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], app_config.port));
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 

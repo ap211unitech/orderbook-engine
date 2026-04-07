@@ -10,3 +10,27 @@ services:
       interval: 2s
       timeout: 2s
       retries: 10
+
+  server-8080:
+    build: .
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 8080
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  server-8081:
+    build: .
+    environment:
+      REDIS_URL: redis://redis:6379
+      PORT: 8081
+      RUST_LOG: info
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
