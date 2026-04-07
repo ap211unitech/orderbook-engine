@@ -13,7 +13,7 @@ use tracing::info;
 
 use crate::{
     broadcaster::Broadcaster,
-    config::AppState,
+    setup::AppState,
     types::{LevelSnapshot, OrderBookSnapshot, SubmitOrder, SubmitResponse},
 };
 

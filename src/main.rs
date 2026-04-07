@@ -1,5 +1,4 @@
 mod broadcaster;
-mod config;
 mod handlers;
 mod setup;
 mod store;
@@ -17,12 +16,10 @@ use axum::{
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::FmtSubscriber;
 
-use setup::Tracing;
-
 use crate::{
     broadcaster::Broadcaster,
-    config::{AppConfig, AppState},
     handlers::{get_orderbook, post_order, ws_handler},
+    setup::{AppConfig, AppState, Tracing},
     store::AppStore,
 };
 
