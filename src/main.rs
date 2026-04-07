@@ -6,7 +6,11 @@ use tracing_subscriber::FmtSubscriber;
 
 use setup::Tracing;
 
+use crate::config::AppConfig;
+
+mod config;
 mod setup;
+mod types;
 
 #[tokio::main]
 async fn main() {
@@ -16,6 +20,8 @@ async fn main() {
         .finish();
 
     tracing::subscriber::set_global_default(subscriber).expect("Failed to setup logging!");
+
+    let app_config = AppConfig::load_config();
 
     // build our application with a single route
     let app = Router::new()
@@ -28,10 +34,10 @@ async fn main() {
                 .on_failure(Tracing::on_failure),
         );
 
+    let addr = SocketAddr::from(([127, 0, 0, 1], app_config.port));
+
     // run our app with hyper, listening globally on port 3000
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
     tracing::info!("Server started on: {} 🚀", listener.local_addr().unwrap());
 
